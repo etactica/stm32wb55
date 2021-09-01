@@ -9,6 +9,8 @@ use stm32wb_hal as hal;
 use bbqueue::{consts::U514, BBBuffer, ConstBBBuffer};
 use core::time::Duration;
 
+use cortex_m::peripheral::{ITM, itm};
+use cortex_m::iprintln;
 use cortex_m_rt::exception;
 use heapless::spsc::{Queue};
 use nb::block;
@@ -78,6 +80,7 @@ const APP: () = {
         rc: RadioCoprocessor<'static, U514>,
         hci_commands_queue: HciCommandsQueue,
         ble_context: BleContext,
+        stim0: &'static mut itm::Stim,
     }
 
     #[init]
@@ -113,6 +116,9 @@ const APP: () = {
 
         // RTC is required for proper operation of BLE stack
         let _rtc = hal::rtc::Rtc::rtc(dp.RTC, &mut rcc);
+        let itm = unsafe { &mut *ITM::ptr() };
+        let stim0 = &mut itm.stim[0];
+        iprintln!(stim0, "booting cpu2");
 
         let mut ipcc = dp.IPCC.constrain();
         let mbox = TlMbox::tl_init(&mut rcc, &mut ipcc);
@@ -148,6 +154,7 @@ const APP: () = {
             rc,
             hci_commands_queue: HciCommandsQueue::new(),
             ble_context: BleContext::default(),
+            stim0,
         }
     }
 
@@ -181,7 +188,7 @@ const APP: () = {
     }
 
     /// Sets up Eddystone BLE beacon service.
-    #[task(resources = [rc, hci_commands_queue], spawn = [exec_hci])]
+    #[task(resources = [rc, hci_commands_queue, stim0], spawn = [exec_hci])]
     fn setup(mut cx: setup::Context) {
         cx.resources
             .hci_commands_queue
@@ -190,6 +197,10 @@ const APP: () = {
 
         init_gap_and_gatt(&mut cx.resources.hci_commands_queue);
         init_eddystone(&mut cx.resources.hci_commands_queue);
+
+        // let itm = unsafe { &mut *ITM::ptr() };
+        // let stim = &mut itm.stim[0];
+        iprintln!(cx.resources.stim0, "finished init eddystone");
 
         // Execute first HCI command from the queue
         cx.spawn.exec_hci().unwrap();
@@ -204,7 +215,7 @@ const APP: () = {
     }
 
     /// Processes BLE events.
-    #[task(resources = [ble_context])]
+    #[task(resources = [ble_context, stim0])]
     fn event(mut cx: event::Context, event: Event<stm32wb55::event::Stm32Wb5xEvent>) {
         if let Event::CommandComplete(CommandComplete { return_params, .. }) = event {
             match return_params {
@@ -219,9 +230,14 @@ const APP: () = {
                     cx.resources.ble_context.service_handle = Some(service_handle);
                     cx.resources.ble_context.dev_name_handle = Some(dev_name_handle);
                     cx.resources.ble_context.appearence_handle = Some(appearance_handle);
-                }
+                },
 
-                _ => (),
+                other => {
+                    // let itm = unsafe { &mut *ITM::ptr() };
+                    // let stim = &mut itm.stim[0];
+                    iprintln!(cx.resources.stim0, "unhandled event: {:?}", other);
+
+                },
             }
         }
     }
