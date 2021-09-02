@@ -58,3 +58,4 @@ lto = true
 [patch.crates-io]
 # The Tiwalun demos required this, but we _probably_ don't unless we need those few attributes that were updated
 bluetooth-hci = { git = "https://github.com/danielgallagher0/bluetooth-hci", branch = "master" }
+stm32wb-hal = { path = "../rust-eupn-stm32wb-hal" }
