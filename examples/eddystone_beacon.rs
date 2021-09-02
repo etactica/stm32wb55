@@ -96,19 +96,13 @@ const APP: () = {
         // * 64 MHz CPU1, 32 MHz CPU2
         // * 64 MHz for APB1, APB2
         // * HSI as a clock source after wake-up from low-power mode
-        let clock_config = Config::new(SysClkSrc::Pll(PllSrc::Hse(HseDivider::NotDivided)))
+        // just run at 32MHZ hse instead?
+        let clock_config = Config::new(SysClkSrc::HseSys(HseDivider::NotDivided))
             .with_lse()
             .cpu1_hdiv(HDivider::NotDivided)
-            .cpu2_hdiv(HDivider::Div2)
+            .cpu2_hdiv(HDivider::NotDivided)
             .apb1_div(ApbDivider::NotDivided)
             .apb2_div(ApbDivider::NotDivided)
-            .pll_cfg(PllConfig {
-                m: 2,
-                n: 12,
-                r: 3,
-                q: Some(4),
-                p: Some(3),
-            })
             .rtc_src(RtcClkSrc::Lse)
             .rf_wkp_sel(RfWakeupClock::Lse);
 
