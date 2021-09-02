@@ -160,8 +160,11 @@ const APP: () = {
 
     #[idle(resources = [rc, ble_context], spawn = [setup, exec_hci, event])]
     fn idle(mut cx: idle::Context) -> ! {
+        let itm = unsafe { &mut *ITM::ptr() };
+        let stim0 = &mut itm.stim[0];
         loop {
             cortex_m::asm::wfi();
+            iprintln!(stim0, "Woke");
 
             // At this point, an interrupt was received.
             // Radio co-processor talks to the app via IPCC interrupts, so this interrupt
@@ -169,6 +172,7 @@ const APP: () = {
             // radio co-processor here.
             let evt = cx.resources.rc.lock(|rc| {
                 if rc.process_events() {
+                    iprintln!(stim0, "processed");
                     Some(block!(rc.read()))
                 } else {
                     None
@@ -207,8 +211,9 @@ const APP: () = {
     }
 
     /// Executes HCI command from the queue.
-    #[task(resources = [rc, hci_commands_queue, ble_context])]
+    #[task(resources = [rc, hci_commands_queue, ble_context, stim0])]
     fn exec_hci(mut cx: exec_hci::Context) {
+        iprintln!(cx.resources.stim0, "exec_hci");
         if let Some(cmd) = cx.resources.hci_commands_queue.dequeue() {
             cmd(&mut cx.resources.rc, &cx.resources.ble_context);
         }
