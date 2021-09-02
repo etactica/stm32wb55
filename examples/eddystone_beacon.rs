@@ -24,6 +24,8 @@ use hal::{
         StopWakeupClock, SysClkSrc,
     },
     tl_mbox::{lhci::LhciC1DeviceInformationCcrp, shci::ShciBleInitCmdParam, TlMbox},
+    pwr::{Cpu2LowPowerMode, VoltageRange},
+    smps::SmpsStartupCurrent,
 };
 
 use bluetooth_hci::{
@@ -49,6 +51,7 @@ use stm32wb55::{
     hal::{Commands as HalCommands, ConfigData, PowerLevel},
     RadioCoprocessor,
 };
+use stm32wb_hal::rcc::SmpsClkSrc;
 
 pub type HciCommandsQueue =
     // Needs to hold two packets, at least 257 bytes for biggest possible HCI BLE event + header
@@ -110,9 +113,14 @@ const APP: () = {
                 p: Some(3),
             })
             .rtc_src(RtcClkSrc::Lse)
+            .smps_src(SmpsClkSrc::Hse)
             .rf_wkp_sel(RfWakeupClock::Lse);
 
         let mut rcc = rcc.apply_clock_config(clock_config, &mut dp.FLASH.constrain().acr);
+        hal::pwr::set_voltage_range(VoltageRange::Range1);
+        hal::smps::Smps::startup_current(SmpsStartupCurrent::I140mA);
+        // This crashes, so who knows what's even going on...
+        //hal::smps::Smps::enable();
 
         // RTC is required for proper operation of BLE stack
         let _rtc = hal::rtc::Rtc::rtc(dp.RTC, &mut rcc);
@@ -122,8 +130,10 @@ const APP: () = {
 
         let mut ipcc = dp.IPCC.constrain();
         let mbox = TlMbox::tl_init(&mut rcc, &mut ipcc);
+        iprintln!(stim0, "wireless fw info: {:?}", mbox.wireless_fw_info());
 
         // Boot CPU2
+        hal::pwr::set_cpu2_lpmode(Cpu2LowPowerMode::Shutdown);
         hal::pwr::set_cpu2(true);
 
         let config = ShciBleInitCmdParam {
