@@ -3,7 +3,7 @@
 #![no_std]
 #![allow(non_snake_case)]
 
-use panic_halt as _;
+use panic_itm as _;
 use stm32wb_hal as hal;
 
 use bbqueue::{consts::U514, BBBuffer, ConstBBBuffer};
@@ -21,9 +21,12 @@ use hal::{
     prelude::*,
     rcc::{
         ApbDivider, Config, HDivider, HseDivider, PllConfig, PllSrc, RfWakeupClock, RtcClkSrc,
-        StopWakeupClock, SysClkSrc,
+        SmpsClkSrc, StopWakeupClock, SysClkSrc,
     },
     tl_mbox::{lhci::LhciC1DeviceInformationCcrp, shci::ShciBleInitCmdParam, TlMbox},
+    pac,
+    pac::Peripherals,
+    prelude::*,
     pwr::{Cpu2LowPowerMode, VoltageRange},
     smps::SmpsStartupCurrent,
 };
@@ -51,7 +54,6 @@ use stm32wb55::{
     hal::{Commands as HalCommands, ConfigData, PowerLevel},
     RadioCoprocessor,
 };
-use stm32wb_hal::rcc::SmpsClkSrc;
 
 pub type HciCommandsQueue =
     // Needs to hold two packets, at least 257 bytes for biggest possible HCI BLE event + header
@@ -89,7 +91,8 @@ const APP: () = {
     #[init]
     fn init(cx: init::Context) -> init::LateResources {
 
-        let dp = cx.device;
+        let dp: Peripherals = cx.device;
+        let mut cp = cx.core;
         let mut rcc = dp.RCC.constrain();
         rcc.set_stop_wakeup_clock(StopWakeupClock::HSI16);
 
@@ -159,6 +162,13 @@ const APP: () = {
         static BB: BBBuffer<U514> = BBBuffer(ConstBBBuffer::new());
         let (producer, consumer) = BB.try_split().unwrap();
         let rc = RadioCoprocessor::new(producer, consumer, mbox, ipcc, config);
+
+        // Setup power stuff here?
+        // setting lpms like this is _worse_ than not doing it?!
+        // let pwr = unsafe { hal::pac::Peripherals::steal().PWR };
+        // pwr.cr1.modify(|_, w| unsafe { w.lpms().bits(0b011) });
+        cp.SCB.set_sleepdeep();
+        // dp.RCC.cfgr.
 
         init::LateResources {
             rc,

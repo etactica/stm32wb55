@@ -3,7 +3,7 @@
 #![no_std]
 #![allow(non_snake_case)]
 
-use panic_halt as _;
+use panic_itm as _;
 use stm32wb_hal as hal;
 
 use bbqueue::{consts::U514, BBBuffer, ConstBBBuffer};
